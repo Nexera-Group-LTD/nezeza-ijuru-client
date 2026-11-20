@@ -1,8 +1,15 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, RESPONSE_INIT, computed, inject, signal } from '@angular/core';
+import {
+  Component,
+  OnDestroy,
+  OnInit,
+  RESPONSE_INIT,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { SafeResourceUrl } from '@angular/platform-browser';
 import { ActivatedRoute } from '@angular/router';
-import { OnDestroy, OnInit } from '@angular/core';
 import { Subject, Subscription, catchError, finalize, forkJoin, of, takeUntil } from 'rxjs';
 import {
   ConferenceEvent,
@@ -41,6 +48,7 @@ export class ConferenceProgramDetails implements OnInit, OnDestroy {
   readonly nextEvent = computed(
     () => this.publishedEvents().find((event) => event.eventStatus === 'PLANNED') ?? null,
   );
+
   private readonly responseInit = inject(RESPONSE_INIT, { optional: true });
   private request?: Subscription;
   private readonly destroyed$ = new Subject<void>();
@@ -74,22 +82,38 @@ export class ConferenceProgramDetails implements OnInit, OnDestroy {
     if (conferenceId && programId) this.loadProgram(conferenceId, programId);
   }
 
-  schedule(value: string, timezone: string): string {
+  private formatDate(value: string, timezone: string, options: Intl.DateTimeFormatOptions): string {
     const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return 'Date unavailable';
+    if (Number.isNaN(date.getTime())) return '—';
     try {
       return new Intl.DateTimeFormat('en', {
-        dateStyle: 'medium',
-        timeStyle: 'short',
+        ...options,
         timeZone: timezone || 'Africa/Kigali',
       }).format(date);
     } catch {
-      return new Intl.DateTimeFormat('en', {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-        timeZone: 'UTC',
-      }).format(date);
+      return new Intl.DateTimeFormat('en', { ...options, timeZone: 'UTC' }).format(date);
     }
+  }
+
+  schedule(value: string, timezone: string): string {
+    const formatted = this.formatDate(value, timezone, { dateStyle: 'medium', timeStyle: 'short' });
+    return formatted === '—' ? 'Date unavailable' : formatted;
+  }
+
+  eventMonth(value: string, timezone: string): string {
+    return this.formatDate(value, timezone, { month: 'short' });
+  }
+
+  eventDay(value: string, timezone: string): string {
+    return this.formatDate(value, timezone, { day: '2-digit' });
+  }
+
+  eventYear(value: string, timezone: string): string {
+    return this.formatDate(value, timezone, { year: 'numeric' });
+  }
+
+  eventTime(value: string, timezone: string): string {
+    return this.formatDate(value, timezone, { hour: 'numeric', minute: '2-digit' });
   }
 
   readableStatus(status: string): string {
